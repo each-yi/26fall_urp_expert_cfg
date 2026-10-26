@@ -44,3 +44,7 @@
 현재 환경에서 검증한 것은 CPU metric/변환/보고서 코드이다. GPU, 모델 다운로드, adapter 호환성, downstream 학습, 실제 수치는 아직 검증되지 않았다. 공식 README가 안내하는 Hugging Face adapter의 존재와 정확한 학습 stage는 현재 네트워크 차단으로 재확인할 수 없다. Colab은 이를 온라인으로 검증하며 실패를 숨기지 않는다.
 
 표1과 표3의 논문값은 서로 다른 설정이다. 양자화·crop 수·학습 stage·split·metric 구현이 다르면 수치차를 단순 재현 실패로 해석할 수 없다. 647k×두 단계 재학습은 무료 T4 세션에 적합하지 않아 공개 adapter를 사용하는 경로를 선택했다. 세 dataset×두 모델 downstream도 여러 세션이 걸릴 수 있으므로 Drive에 checkpoint를 저장한다. 학습 완료 marker가 없는 checkpoint는 표1 비교 경로에서 거절한다.
+
+## Hugging Face 연결 추가
+
+`baseline.download_data`에서 flaviagiammarino/vqa-rad, BoKelvin/SLAKE, flaviagiammarino/path-vqa를 기본 소스로 사용한다. 다운로드한 소스의 commit SHA·컬럼·split별 필터 전후 개수·checksum을 보관하고 mirror split을 변경하지 않는다. SLAKE 언어 tag 필터와 yes/no 기반 answer_type fallback을 명시적으로 적용한다. 이들 mirror가 저자 exact split과 동일하다는 뜻은 아니며 현재 서버의 HF 403 때문에 실제 원격 다운로드 검증은 보류 상태이다. CPU 테스트는 이미지/bytes 변환·영어 필터·split 보존·캐시 무결성·누락 데이터 거절을 검증한다.

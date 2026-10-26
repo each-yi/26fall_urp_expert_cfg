@@ -24,7 +24,34 @@ python -m pip install -r requirements-colab.txt
 
 설치 후 **런타임을 재시작**한다. Python3.10–3.12를 대상으로 고정한 stack이다. 2026년 Colab 기본 torch를 그대로 쓰면 remote model code와 API가 달라질 수 있어 별도 고정한다. FlashAttention2·BF16은 T4 경로에 사용하지 않는다. HF model remote code를 사용하며 실행 시 현재 revision을 정확한 SHA로 resolve하여 기록한다. 처음 온라인 실행 후 `--revision SHA --adapter-revision SHA`로 고정한다. 개인 토큰은 notebook이나 저장소에 기록하지 않는다.
 
-## 2. 공식 데이터의 split을 보존해 준비
+## 2. Hugging Face 자동 데이터 준비
+
+노트북의 **Hugging Face 데이터 자동 준비** 셀을 실행하면 다운로드·이미지 저장·JSONL 변환·경로 연결이 이어진다. 수동으로 데이터를 Drive에 넣을 필요 없다.
+
+|baseline 이름|기본 HF 소스|
+|---|---|
+|vqa_rad|[flaviagiammarino/vqa-rad](https://huggingface.co/datasets/flaviagiammarino/vqa-rad)|
+|slake|[BoKelvin/SLAKE](https://huggingface.co/datasets/BoKelvin/SLAKE)|
+|pathvqa|[flaviagiammarino/path-vqa](https://huggingface.co/datasets/flaviagiammarino/path-vqa)|
+
+```bash
+python -m baseline.download_data --output /content/drive/MyDrive/urp_data/hf --cache-dir /content/hf_datasets_cache
+```
+
+준비된 경로는 `data_paths.json`에 저장되고 notebook의 `DATA`에 자동 연결된다. 각 dataset 폴더에는 `train.jsonl`, `test.jsonl`, 제공된 경우 `validation.jsonl`, `images/`, `provenance.json`이 생긴다. 이후 실행에서는 완료 데이터와 checksum을 검사해 재사용하므로 HF 다운로드를 반복하지 않는다. HF raw cache는 Colab 임시 디스크, 준비된 결과는 Drive에 저장한다. 최초 변환은 이미지가 많아 시간이 걸릴 수 있다.
+
+Mirror의 기존 split을 유지하고 임의 train/test 분할을 만들지 않는다. SLAKE는 언어 tag가 제공되면 en/eng/english만 남긴다. answer_type이 없는 mirror는 yes/no를 closed, 그 외를 open으로 판별하고, 알 수 없는 숫자 category는 거절한다. 원래 ID는 source_id로 보관하고 정규 ID에는 split prefix를 붙여 split별 로컬 ID 충돌을 방지한다. 공유 이미지·중복 질문 개수를 provenance에 기록한다.
+
+`provenance.json`에는 source ID, 실제 commit SHA, source 컬럼, split별 필터 전후 개수와 이미지/JSONL SHA256이 남는다. **이 HF mirror의 split이 논문과 완전히 같다는 검증은 아직 없다.** 개발 서버에서는 huggingface.co 요청이 403으로 차단되어 실제 원격 다운로드는 미검증이다. 코드의 offline fixture 테스트가 HF 연결 성공을 뜻하지 않는다. 표준 loader가 지원하지 않는 JSON/ZIP 구조는 원래 train.json/test.json을 읽는 fallback을 시도하며, 데이터셋 코드를 원격 실행하지 않는다. 필요한 이미지가 없거나 스키마가 지원되지 않으면 원인을 출력하고 중단한다.
+
+특정 소스/commit/config를 지정할 수도 있다. 다른 source/revision을 시험할 때는 기존 준비 데이터를 덮어쓰지 않고 새 output root를 사용한다.
+
+```bash
+python -m baseline.download_data --datasets slake --source BoKelvin/SLAKE --output /content/drive/MyDrive/urp_data/hf_custom
+# --revision <commit SHA>, --config <config>도 한 데이터셋씩 지정 가능
+```
+
+### 직접 확보한 공식 파일로 준비하는 대안
 
 소스: [VQA-RAD](https://osf.io/89kps/), [SLAKE](https://www.med-vqa.com/slake/), [PathVQA](https://github.com/UCSD-AI4H/PathVQA). 저자 [공식 저장소](https://github.com/ecoxial2007/Expert-CFG)에도 데이터 링크가 있다. 이용 조건을 확인하여 이미지와 공식 train/test annotation을 확보한다. 임의로 train/test를 나누거나 test를 train에 섞지 않는다. 서로 다른 HF mirror의 split을 논문과 동일하다고 가정하지 않는다.
 
