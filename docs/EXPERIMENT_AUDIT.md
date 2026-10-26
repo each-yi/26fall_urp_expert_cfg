@@ -48,3 +48,7 @@
 ## Hugging Face 연결 추가
 
 `baseline.download_data`에서 flaviagiammarino/vqa-rad, BoKelvin/SLAKE, flaviagiammarino/path-vqa를 기본 소스로 사용한다. 다운로드한 소스의 commit SHA·컬럼·split별 필터 전후 개수·checksum을 보관하고 mirror split을 변경하지 않는다. SLAKE 언어 tag 필터와 yes/no 기반 answer_type fallback을 명시적으로 적용한다. 이들 mirror가 저자 exact split과 동일하다는 뜻은 아니며 현재 서버의 HF 403 때문에 실제 원격 다운로드 검증은 보류 상태이다. CPU 테스트는 이미지/bytes 변환·영어 필터·split 보존·캐시 무결성·누락 데이터 거절을 검증한다.
+
+## Colab Python 버전 대응
+
+Colab kernel의 Python이 3.13으로 올라가면 PyArrow17/NumPy1.26/Torch2.4.1 wheel이 없어 기존 설치가 실패할 수 있다. `scripts/setup_colab.py`가 별도 Python3.11 환경을 만들고 notebook은 GPU 검사·테스트·데이터 다운로드·학습·추론 모두 해당 interpreter에서 실행한다. 이는 수치 실험의 dependency 버전을 바꾸는 대신 runtime을 고정하는 조치이다. 실제 T4 forward/backward 검증은 여전히 Colab에서 필요하다.

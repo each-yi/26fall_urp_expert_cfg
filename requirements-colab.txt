@@ -1,4 +1,4 @@
-# Install into a fresh Colab runtime, then restart the runtime.
+# Python 3.11 stack. In Colab use scripts/setup_colab.py (no kernel restart).
 transformers==4.44.2
 peft==0.12.0
 accelerate==0.34.2

@@ -17,12 +17,18 @@
 
 새 T4 런타임을 사용한다. notebook 첫 셀이 GitHub main의 코드를 `/content/26fall_urp_expert_cfg`에 자동으로 clone한다. Drive는 데이터와 checkpoint 보관에 사용하며 코드 폴더를 직접 업로드할 필요가 없다.
 
+노트북 설치 셀은 별도 **Python 3.11** 환경(`/content/urp-venv`)을 생성한다. Colab 기본 Python이 3.13이어도 고정한 PyTorch/PyArrow/NumPy wheel을 설치할 수 있다. 기본 kernel에 이전 `%pip install` 명령을 실행하지 않는다. 설치 후 kernel 재시작도 필요 없다.
+
 ```bash
-python -m pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu121
-python -m pip install -r requirements-colab.txt
+python /content/26fall_urp_expert_cfg/scripts/setup_colab.py
+# 이후 모든 CLI는 이 interpreter로 실행:
+/content/urp-venv/bin/python -m baseline.download_data --output /content/drive/MyDrive/urp_data/hf
+# 터미널에서는 source /content/urp-venv/bin/activate 후 아래 python 명령들을 사용해도 된다.
 ```
 
-설치 후 **런타임을 재시작**한다. Python3.10–3.12를 대상으로 고정한 stack이다. 2026년 Colab 기본 torch를 그대로 쓰면 remote model code와 API가 달라질 수 있어 별도 고정한다. FlashAttention2·BF16은 T4 경로에 사용하지 않는다. HF model remote code를 사용하며 실행 시 현재 revision을 정확한 SHA로 resolve하여 기록한다. 처음 온라인 실행 후 `--revision SHA --adapter-revision SHA`로 고정한다. 개인 토큰은 notebook이나 저장소에 기록하지 않는다.
+설치기는 `uv==0.9.5`와 Python 3.11 환경을 준비하고 CUDA121 torch2.4.1/torchvision0.19.1 및 requirements를 설치한다. wheel만 허용하여 지원되지 않는 패키지의 긴 소스 빌드를 막는다. 기존 환경은 재사용하고 dependency consistency check를 수행한다. Python 다운로드용 GitHub와 패키지 저장소 접근이 필요하다.
+
+FlashAttention2·BF16은 T4 경로에 사용하지 않는다. HF model remote code를 사용하며 실행 시 현재 revision을 정확한 SHA로 resolve하여 기록한다. 처음 온라인 실행 후 `--revision SHA --adapter-revision SHA`로 고정한다. 개인 토큰은 notebook이나 저장소에 기록하지 않는다.
 
 ## 2. Hugging Face 자동 데이터 준비
 

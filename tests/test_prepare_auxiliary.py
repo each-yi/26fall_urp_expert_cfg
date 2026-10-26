@@ -42,6 +42,26 @@ class ArtifactTest(unittest.TestCase):
             self.assertEqual(out['keywords']['run']['f1'],50)
             self.assertEqual(out['keywords']['paper']['f1'],93.76)
 
+    def test_notebook_runner_uses_dedicated_python(self):
+        import ast
+        from unittest.mock import Mock
+        notebook = json.loads(Path('notebooks/colab_t4.ipynb').read_text())
+        source = next(''.join(c['source']) for c in notebook['cells']
+                      if c['cell_type']=='code' and 'def run_module(' in ''.join(c['source']))
+        function = next(n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef))
+        runner = ast.Module(body=[function], type_ignores=[])
+        subprocess_mock = Mock()
+        namespace = {'PYTHON':'/isolated/python3.11','REPO':Path('/repo'), 'subprocess':subprocess_mock}
+        exec(compile(runner,'<runner>','exec'),namespace)
+        namespace['run_module']('baseline.download_data','--output','/data')
+        subprocess_mock.run.assert_called_once_with(
+            ['/isolated/python3.11','-m','baseline.download_data','--output','/data'],
+            cwd='/repo',check=True)
+        # Data download and tests must not silently fall back to the Colab kernel.
+        for cell in notebook['cells'][3:]:
+            if cell['cell_type']=='code':
+                self.assertNotIn('sys.executable',''.join(cell['source']))
+
     def test_notebook_structure_and_python_syntax(self):
         import ast
         notebook = json.loads(Path('notebooks/colab_t4.ipynb').read_text())
