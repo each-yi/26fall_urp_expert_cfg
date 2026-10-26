@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -21,7 +22,8 @@ class ReportTest(unittest.TestCase):
                 path.write_text(''.join(json.dumps(r)+'\n' for r in values))
             completed = subprocess.run([sys.executable,'-m','baseline.evaluate','--data',str(data),
                 '--predictions',str(pred),'--output',str(out),'--plots'],
-                cwd=str(Path(__file__).resolve().parents[1]),capture_output=True,text=True)
+                cwd=str(Path(__file__).resolve().parents[1]),capture_output=True,text=True,
+                env={**os.environ, 'MPLBACKEND':'module://matplotlib_inline.backend_inline'})
             # Surface the child traceback instead of hiding it in CalledProcessError.
             self.assertEqual(completed.returncode, 0,
                              f'baseline.evaluate failed:\n{completed.stdout}\n{completed.stderr}')

@@ -154,6 +154,10 @@ def main():
     (out/'report.json').write_text(json.dumps(report,indent=2,ensure_ascii=False,allow_nan=False))
     (out/'comparison.md').write_text('\n'.join(lines)+'\n')
     if args.plots:
+        # Colab exports an inline backend unavailable inside the isolated runtime.
+        # Select a file backend BEFORE import, which validates MPLBACKEND.
+        import os
+        os.environ['MPLBACKEND'] = 'Agg'
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
