@@ -48,6 +48,8 @@ python -m baseline.download_data --output /content/drive/MyDrive/urp_data/hf --c
 
 Mirror의 기존 split을 유지하고 임의 train/test 분할을 만들지 않는다. SLAKE는 언어 tag가 제공되면 en/eng/english만 남긴다. answer_type이 없는 mirror는 yes/no를 closed, 그 외를 open으로 판별하고, 알 수 없는 숫자 category는 거절한다. 원래 ID는 source_id로 보관하고 정규 ID에는 split prefix를 붙여 split별 로컬 ID 충돌을 방지한다. 공유 이미지·중복 질문 개수를 provenance에 기록한다.
 
+빈/null 정답이나 비문자·빈 질문은 정답을 추측해서 채우지 않고 `<split>.rejected.jsonl`에 source ID·원문·제외 사유를 보관한다. 정상 QA는 계속 준비하며 `provenance.json`에 언어 필터 수와 invalid annotation 수를 별도로 기록한다. source split 소속은 변경하지 않는다. 평가 coverage는 정제 후 test manifest 기준이며, 보고서에 원본 제외 개수도 표시한다. 논문과 필터가 다를 수 있으므로 exact split 재현으로 주장하지 않는다. 질문/정답 컬럼 자체가 없는 schema나 이미지 오류는 여전히 중단한다.
+
 `provenance.json`에는 source ID, 실제 commit SHA, source 컬럼, split별 필터 전후 개수와 이미지/JSONL SHA256이 남는다. **이 HF mirror의 split이 논문과 완전히 같다는 검증은 아직 없다.** 개발 서버에서는 huggingface.co 요청이 403으로 차단되어 실제 원격 다운로드는 미검증이다. 코드의 offline fixture 테스트가 HF 연결 성공을 뜻하지 않는다. 표준 loader가 지원하지 않는 JSON/ZIP 구조는 원래 train.json/test.json을 읽는 fallback을 시도하며, 데이터셋 코드를 원격 실행하지 않는다. 필요한 이미지가 없거나 스키마가 지원되지 않으면 원인을 출력하고 중단한다.
 
 특정 소스/commit/config를 지정할 수도 있다. 다른 source/revision을 시험할 때는 기존 준비 데이터를 덮어쓰지 않고 새 output root를 사용한다.

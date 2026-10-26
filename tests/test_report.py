@@ -20,6 +20,9 @@ class ReportTest(unittest.TestCase):
             data,pred,out = d/'test.jsonl',d/'pred.jsonl',d/'report'
             for path,values in [(data,rows),(pred,preds)]:
                 path.write_text(''.join(json.dumps(r)+'\n' for r in values))
+            (d/'provenance.json').write_text(json.dumps({
+                'source':'fixture/source','revision':'fixture-revision',
+                'splits':{'test':{'raw':4,'kept':3,'invalid_annotations':1}}}))
             completed = subprocess.run([sys.executable,'-m','baseline.evaluate','--data',str(data),
                 '--predictions',str(pred),'--output',str(out),'--plots'],
                 cwd=str(Path(__file__).resolve().parents[1]),capture_output=True,text=True,
@@ -29,6 +32,8 @@ class ReportTest(unittest.TestCase):
                              f'baseline.evaluate failed:\n{completed.stdout}\n{completed.stderr}')
             result = json.loads((out/'report.json').read_text())
             self.assertTrue(result['coverage']['complete'])
+            self.assertEqual(result['data_provenance']['splits']['test']['invalid_annotations'],1)
+            self.assertIn('Source filtering:', (out/'comparison.md').read_text())
             self.assertEqual(result['datasets']['vqa_rad']['metrics']['overall'],50)
             self.assertEqual(result['datasets']['vqa_rad']['comparison']['overall']['paper'],82.04)
             self.assertEqual(result['datasets']['vqa_rad']['calibration']['entropy']['ece_t'],None)

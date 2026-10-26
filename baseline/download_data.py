@@ -29,6 +29,10 @@ def get_field(row, keys, default=None):
     return default
 
 
+class InvalidAnnotation(ValueError):
+    """A source row with unusable content, not a missing/unsupported schema."""
+
+
 def normalize(row, dataset, split, index):
     language = get_field(row, ('q_lang', 'language', 'lang'))
     if dataset == 'slake' and language is not None:
@@ -36,8 +40,12 @@ def normalize(row, dataset, split, index):
             return None
     question = get_field(row, ('question', 'query'))
     answer = get_field(row, ('answer', 'label'))
-    if not isinstance(question, str) or answer is None or not str(answer).strip():
-        raise ValueError(f'{dataset}/{split} row {index}: question/answer fields missing; columns={list(row)}')
+    if not any(k in row for k in ('question', 'query')) or not any(k in row for k in ('answer', 'label')):
+        raise ValueError(f'{dataset}/{split} row {index}: question/answer columns missing; columns={list(row)}')
+    if not isinstance(question, str) or not question.strip():
+        raise InvalidAnnotation('empty_or_nontext_question')
+    if answer is None or not str(answer).strip():
+        raise InvalidAnnotation('empty_answer')
     answer = str(answer).strip()
     if answer.lower() in ('yes', 'no'):
         answer = answer.lower()
@@ -111,6 +119,7 @@ def export(dataset, splits, target, source, revision, config=None,
                     'source': source, 'revision': revision, 'requested_revision': requested_revision,
                     'config': config, 'english_only': dataset == 'slake',
                     'split_policy': 'Preserve mirror splits; no random resplit; not verified identical to paper',
+                    'annotation_policy': 'Quarantine empty/null answers and empty/nontext questions; never impute ground truth',
                     'splits': {}, 'files': {}, 'images': image_hashes}
         for source_split, records in splits.items():
             split = 'validation' if source_split in ('val', 'valid', 'dev') else source_split
@@ -118,15 +127,28 @@ def export(dataset, splits, target, source, revision, config=None,
                 continue
             if split in manifest['splits']:
                 raise ValueError(f'Multiple source splits map to {split}')
-            raw_count = count = 0
+            raw_count = count = invalid_count = language_count = 0
             closed = 0
             columns = None
-            with (staging/f'{split}.jsonl').open('w', encoding='utf-8') as f:
+            rejected_path = staging/f'{split}.rejected.jsonl'
+            with (staging/f'{split}.jsonl').open('w', encoding='utf-8') as f, rejected_path.open('w', encoding='utf-8') as rejected:
                 for index, row in enumerate(records):
                     raw_count += 1
                     columns = columns or sorted(row)
-                    out = normalize(row, dataset, split, index)
+                    try:
+                        out = normalize(row, dataset, split, index)
+                    except InvalidAnnotation as error:
+                        invalid_count += 1
+                        audit = {'dataset': dataset, 'source_split': source_split, 'source_row': index,
+                                 'source_id': str(get_field(row, ('qid','question_id','q_id','id'), index)),
+                                 'reason': str(error), 'question': get_field(row, ('question','query')),
+                                 'answer': get_field(row, ('answer','label')),
+                                 'image_reference': str(get_field(row, ('img_name','image_name','image_path','img_id'), 'embedded')),
+                                 'language': get_field(row, ('q_lang','language','lang'))}
+                        rejected.write(json.dumps(audit, ensure_ascii=False, default=str)+'\n')
+                        continue
                     if out is None:
+                        language_count += 1
                         continue
                     value = get_field(row, ('image', 'img', 'img_name', 'image_name', 'image_path', 'img_id'))
                     image = open_image(value, resolver)
@@ -146,9 +168,13 @@ def export(dataset, splits, target, source, revision, config=None,
             load_data(staging/f'{split}.jsonl', split)
             manifest['splits'][split] = {'source_split': source_split, 'raw': raw_count,
                                         'kept': count, 'open': count-closed, 'closed': closed,
-                                        'columns': columns}
+                                        'columns': columns, 'filtered_language': language_count,
+                                        'invalid_annotations': invalid_count,
+                                        'rejected_file': rejected_path.name}
             manifest['files'][f'{split}.jsonl'] = digest(staging/f'{split}.jsonl')
-            print(f'{dataset}/{split}: kept {count}/{raw_count} questions', flush=True)
+            manifest['files'][rejected_path.name] = digest(rejected_path)
+            print(f'{dataset}/{split}: kept {count}/{raw_count}; language excluded={language_count}; '
+                  f'invalid annotations={invalid_count} (audit: {rejected_path.name})', flush=True)
         # Sharing images is allowed; record exact duplicate questions without changing the source split.
         train = load_data(staging/'train.jsonl', 'train')
         test = load_data(staging/'test.jsonl', 'test')

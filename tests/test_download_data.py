@@ -40,6 +40,38 @@ class DownloadTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 cached_paths(target,'fixture/source')
 
+    def test_invalid_annotations_are_quarantined_with_original_ids(self):
+        with tempfile.TemporaryDirectory() as d:
+            target = Path(d)/'slake'
+            train = [sample(), sample(1622, answer=''), sample(1623, answer=None),
+                     sample(1624, question='  '), sample(1625, question=None),
+                     sample(1626, q_lang='zh'), sample(1627, answer=0, answer_type='OPEN')]
+            test = [sample(), sample(1700, answer='   ')]
+            paths = export('slake', {'train':train,'test':test},target,'fixture/slake','sha')
+            kept = load_data(paths['train'], 'train')
+            self.assertEqual([r['source_id'] for r in kept], ['0','1627'])
+            self.assertEqual(kept[1]['answer'], '0')
+            manifest = json.loads((target/'provenance.json').read_text())
+            self.assertEqual(manifest['splits']['train']['raw'],7)
+            self.assertEqual(manifest['splits']['train']['filtered_language'],1)
+            self.assertEqual(manifest['splits']['train']['invalid_annotations'],4)
+            self.assertEqual(manifest['splits']['test']['invalid_annotations'],1)
+            rejected = [json.loads(line) for line in (target/'train.rejected.jsonl').read_text().splitlines()]
+            self.assertEqual(rejected[0]['source_id'],'1622')
+            self.assertEqual(rejected[0]['answer'],'')
+            self.assertEqual(rejected[0]['reason'],'empty_answer')
+            self.assertEqual(rejected[-1]['reason'],'empty_or_nontext_question')
+            self.assertEqual(cached_paths(target,'fixture/slake'),paths)
+
+    def test_unsupported_schema_still_fails_instead_of_discarding_rows(self):
+        with tempfile.TemporaryDirectory() as d:
+            target = Path(d)/'slake'
+            bad = sample()
+            del bad['answer']
+            with self.assertRaisesRegex(ValueError, 'columns missing'):
+                export('slake',{'train':[sample(),bad],'test':[sample()]},target,'fixture/slake','sha')
+            self.assertFalse(target.exists())
+
     def test_image_bytes_and_inferred_types(self):
         with tempfile.TemporaryDirectory() as d:
             buffer = io.BytesIO()

@@ -47,7 +47,15 @@ def main():
     meta_path = Path(args.predictions+'.meta.json')
     metadata = json.loads(meta_path.read_text()) if meta_path.exists() else None
     coverage = evaluate(rows,expected)
+    provenance_path = Path(args.data).parent/'provenance.json'
+    data_provenance = None
+    if provenance_path.is_file():
+        source = json.loads(provenance_path.read_text())
+        data_provenance = {k:source.get(k) for k in
+                           ('source','revision','split_policy','annotation_policy','splits')}
+        data_provenance['sha256'] = digest(provenance_path)
     report = {'coverage':coverage,'model':model,'setting':setting,
+              'data_provenance':data_provenance,
               'prediction_sha256':digest(args.predictions),'run':metadata,
               'model_execution_provenance_present':metadata is not None,
               'scoring':'lowercase alphanumeric token multiset recall; closed first explicit yes/no',
@@ -75,7 +83,9 @@ def main():
         raise ValueError('Unknown Table 8 error category')
     lines = ['# Baseline replication comparison', '',
              f'Model: {model}; setting: {setting}; completed {coverage["completed"]}/{coverage["expected"]}.',
-             'Incomplete/smoke results are NOT full benchmark replications.', '',
+             'Incomplete/smoke results are NOT full benchmark replications.',
+             ('Source filtering: '+json.dumps(data_provenance['splits'],ensure_ascii=False)) if data_provenance else 'Source filtering: no preparation provenance available.',
+             'Coverage refers to the prepared test manifest; excluded source annotations are not evaluated.', '',
              '|Dataset|Metric|Paper %|Run %|Delta (percentage points)|',
              '|---|---|---:|---:|---:|']
     for dataset in sorted({r['dataset'] for r in expected}):
