@@ -1,0 +1,13 @@
+# Install into a fresh Colab runtime, then restart the runtime.
+transformers==4.44.2
+peft==0.12.0
+accelerate==0.34.2
+bitsandbytes==0.44.1
+huggingface-hub==0.25.2
+numpy==1.26.4
+Pillow==10.4.0
+scikit-learn==1.5.2
+scipy==1.14.1
+matplotlib==3.9.2
+sentencepiece==0.2.0
+# Install the CUDA121 torch==2.4.1 / torchvision==0.19.1 pair first; see notebook.
