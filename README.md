@@ -15,7 +15,7 @@
 
 ## 1. Colab 설치
 
-새 T4 런타임을 사용한다. notebook 첫 셀에 저장소 경로를 설정한다. 아직 GitHub에 push하지 않은 파일은 저장소 폴더 전체를 Drive에 올려 사용한다.
+새 T4 런타임을 사용한다. notebook 첫 셀이 GitHub main의 코드를 `/content/26fall_urp_expert_cfg`에 자동으로 clone한다. Drive는 데이터와 checkpoint 보관에 사용하며 코드 폴더를 직접 업로드할 필요가 없다.
 
 ```bash
 python -m pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu121
