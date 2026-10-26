@@ -19,8 +19,12 @@ class ReportTest(unittest.TestCase):
             data,pred,out = d/'test.jsonl',d/'pred.jsonl',d/'report'
             for path,values in [(data,rows),(pred,preds)]:
                 path.write_text(''.join(json.dumps(r)+'\n' for r in values))
-            subprocess.run([sys.executable,'-m','baseline.evaluate','--data',str(data),
-                '--predictions',str(pred),'--output',str(out),'--plots'],check=True,capture_output=True)
+            completed = subprocess.run([sys.executable,'-m','baseline.evaluate','--data',str(data),
+                '--predictions',str(pred),'--output',str(out),'--plots'],
+                cwd=str(Path(__file__).resolve().parents[1]),capture_output=True,text=True)
+            # Surface the child traceback instead of hiding it in CalledProcessError.
+            self.assertEqual(completed.returncode, 0,
+                             f'baseline.evaluate failed:\n{completed.stdout}\n{completed.stderr}')
             result = json.loads((out/'report.json').read_text())
             self.assertTrue(result['coverage']['complete'])
             self.assertEqual(result['datasets']['vqa_rad']['metrics']['overall'],50)
