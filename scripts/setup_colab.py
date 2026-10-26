@@ -36,6 +36,7 @@ def main():
     run(uv,'pip','install','--python',python,'--only-binary',':all:',
         '-r',repo/'requirements-colab.txt','torch==2.4.1','torchvision==0.19.1')
     run(uv,'pip','check','--python',python)
+    run(python,'-c','import setuptools; print("setuptools:", setuptools.__version__)')
     print(json.dumps({'python':str(python),'version':version,'repository':str(repo)}),flush=True)
     print('Environment ready. Use this interpreter for every baseline command. No kernel restart needed.',flush=True)
 

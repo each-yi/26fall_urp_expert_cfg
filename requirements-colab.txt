@@ -1,4 +1,6 @@
 # Python 3.11 stack. In Colab use scripts/setup_colab.py (no kernel restart).
+# uv venv does not seed setuptools; Triton 3.0 imports it at runtime.
+setuptools==70.3.0
 transformers==4.44.2
 peft==0.12.0
 accelerate==0.34.2
