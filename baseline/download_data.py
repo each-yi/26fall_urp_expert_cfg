@@ -200,7 +200,9 @@ def unpack_assets(archives, destination):
 def asset_resolver(repo, revision, cache_dir):
     """Lazy fallback for mirrors with img_name instead of embedded HF Image columns."""
     roots = []
+    by_basename = None
     def resolve(name):
+        nonlocal by_basename
         if not roots:
             from huggingface_hub import snapshot_download
             root = Path(snapshot_download(repo, repo_type='dataset', revision=revision, cache_dir=cache_dir,
@@ -212,17 +214,30 @@ def asset_resolver(repo, revision, cache_dir):
                 extracted = Path(cache_dir or tempfile.gettempdir())/'medvqa_assets'/revision
                 unpack_assets(archives, extracted)
                 roots.append(extracted)
-        relative = name.replace('\\','/').lstrip('./')
-        candidates = []
+        relative = PurePosixPath(name.replace('\\','/'))
+        if relative.is_absolute() or '..' in relative.parts or not relative.parts:
+            raise ValueError(f'{repo}: invalid relative image path: {name!r}')
         for root in roots:
-            direct = root/relative
+            direct = root.joinpath(*relative.parts)
             if direct.is_file():
                 return str(direct)
-            candidates += [p for p in root.rglob(Path(relative).name)
-                           if p.is_file() and p.suffix.lower() in IMAGE_EXT]
-        unique = sorted(set(p.resolve() for p in candidates))
+        if by_basename is None:
+            # Index once, rather than traversing all assets for every question.
+            by_basename = {}
+            for root in roots:
+                for path in root.rglob('*'):
+                    if path.is_file() and path.suffix.lower() in IMAGE_EXT:
+                        by_basename.setdefault(path.name, []).append(path)
+        candidates = by_basename.get(relative.name, [])
+        # SLAKE uses xmlab1/source.jpg, xmlab2/source.jpg, ... . Archive
+        # prefixes may vary, but the complete annotated relative path must match.
+        # Compare before resolve(): HF cache symlinks resolve to extensionless blobs.
+        matches = [p for p in candidates if p.parts[-len(relative.parts):] == relative.parts]
+        unique = sorted({p.resolve() for p in matches})
         if len(unique) != 1:
-            raise ValueError(f'{repo}: image {name!r} has {len(unique)} matches. Source may not include the required images.')
+            raise ValueError(f'{repo}: image {name!r} has {len(unique)} full-path matches '
+                             f'({len(candidates)} basename candidates). '
+                             'Source may not include the required images or has ambiguous archive paths.')
         return str(unique[0])
     return resolve
 

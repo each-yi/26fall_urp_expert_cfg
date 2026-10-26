@@ -5,7 +5,7 @@ import tempfile
 import unittest
 import zipfile
 from PIL import Image
-from baseline.download_data import export, cached_paths, normalize, unpack_assets
+from baseline.download_data import export, cached_paths, normalize, unpack_assets, asset_resolver
 from baseline.data import load_data
 
 
@@ -67,6 +67,45 @@ class DownloadTest(unittest.TestCase):
             normalize({'image':None},'vqa_rad','test',0)
         with self.assertRaises(ValueError):
             normalize(sample(answer_type=1),'vqa_rad','test',0)
+
+    def test_slake_nested_paths_disambiguate_repeated_basenames(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)/'snapshot'
+            for folder in ('xmlab1', 'xmlab2', 'xmlab11'):
+                path = root/'Slake1.0'/'imgs'/folder/'source.jpg'
+                path.parent.mkdir(parents=True, exist_ok=True)
+                Image.new('RGB', (4,4)).save(path)
+            hub = SimpleNamespace(snapshot_download=lambda *args, **kwargs: str(root))
+            with patch.dict('sys.modules', {'huggingface_hub':hub}):
+                resolve = asset_resolver('fixture/slake', 'revision', str(Path(d)/'cache'))
+                for folder in ('xmlab1', 'xmlab2', 'xmlab11'):
+                    self.assertEqual(Path(resolve(f'{folder}/source.jpg')),
+                                     root/'Slake1.0'/'imgs'/folder/'source.jpg')
+                with self.assertRaisesRegex(ValueError, '0 full-path matches'):
+                    resolve('xmlab999/source.jpg')
+                with self.assertRaisesRegex(ValueError, '3 full-path matches'):
+                    resolve('source.jpg')
+
+    def test_resolver_keeps_hf_symlink_logical_path(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)/'snapshot'
+            blob = Path(d)/'blob-without-extension'
+            blob.write_bytes(b'image bytes')
+            for folder in ('xmlab1', 'xmlab2'):
+                path = root/'imgs'/folder/'source.jpg'
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.symlink_to(blob if folder=='xmlab1' else Path(d)/'missing')
+            hub = SimpleNamespace(snapshot_download=lambda *args, **kwargs: str(root))
+            with patch.dict('sys.modules', {'huggingface_hub':hub}):
+                resolve = asset_resolver('fixture/slake', 'revision', str(Path(d)/'cache'))
+                self.assertEqual(Path(resolve('xmlab1/source.jpg')), blob)
+                # A missing folder cannot fall back to the only matching basename.
+                with self.assertRaisesRegex(ValueError, '0 full-path matches'):
+                    resolve('xmlab999/source.jpg')
 
     def test_archive_assets_and_traversal(self):
         with tempfile.TemporaryDirectory() as d:
